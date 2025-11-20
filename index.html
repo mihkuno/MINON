@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lexer & Parser Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #1e1e1e; color: white; font-family: monospace; overflow: hidden; }
+        #info { position: absolute; top: 10px; right: 10px; text-align: right; pointer-events: none; }
+        input { pointer-events: auto; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>State: <span id="phase-display">Initializing...</span></h3>
+        <p>Speed: <input type="range" min="1" max="60" value="10" id="speed-slider"></p>
+    </div>
+
+<script>
+// ==========================================
+// CONFIG & CONSTANTS
+// ==========================================
+
+const INPUT_STR = '{"id":{"hi":3},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]}';
+// const INPUT_STR = '{"val":1.2%, "test":"test"}';
+// const INPUT_STR = '{}';
+// const INPUT_STR = '{"val":1.2,}';
+
+// Lexer States
+const L_START = 0, L_STRING = 1, L_NUMBER = 2;
+
+// Syntax States
+const S_START = 0, S_KEY = 1, S_COLON = 2, S_VALUE = 3, S_COMMA = 4;
+
+// Visuals
+let inputArr = [];
+let tokens = [];
+let parseStack = [];
+
+// Animation Control
+let phase = 0; // 0 = Lexer, 1 = Intermission, 2 = Parser, 3 = Success, 4 = Error
+let simSpeed = 10;
+
+// Lexer Variables
+let lState = L_START;
+let lIdx = 0;
+let lBuffer = "";
+let lastLTransition = { from: -1, to: -1 }; // ADDED: Tracks the last Lexer transition
+
+// Parser Variables
+let pState = S_START;
+let pIdx = 0;
+let pMsg = "Starting Syntax Analysis...";
+let lastPTransition = { from: -1, to: -1, label: "" }; // ADDED: Tracks the last Parser transition
+
+const CHAR_WIDTH = 9; // Approx width of monospace character for input display
+const LABEL_TEXT_SIZE = 12; // Consistent label text size
+
+// ==========================================
+// SETUP
+// ==========================================
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    textFont('Courier New');
+    inputArr = INPUT_STR.split('');
+    
+    document.getElementById('speed-slider').addEventListener('input', (e) => {
+        simSpeed = e.target.value;
+    });
+}
+
+// ==========================================
+// DRAW LOOP
+// ==========================================
+function draw() {
+    background(30);
+    
+    // Reset transition tracker for the new frame
+    lastLTransition = { from: -1, to: -1 };
+    lastPTransition = { from: -1, to: -1, label: "" };
+    
+    if (phase === 0) {
+        if (frameCount % simSpeed === 0) stepLexer();
+        drawLexerUI();
+        document.getElementById('phase-display').innerText = "LEXICAL ANALYSIS (DFA)";
+    } else if (phase === 1) {
+        drawLexerUI();
+        fill(255); textAlign(CENTER); textSize(20);
+        noStroke();
+        text("Lexing Complete. Starting Syntax Analysis...", width/2, height - 50);
+        if (frameCount % 60 === 0) phase = 2; 
+    } else if (phase === 2) {
+        if (frameCount % simSpeed === 0) stepParser();
+        drawParserUI();
+        document.getElementById('phase-display').innerText = "SYNTAX ANALYSIS (PDA)";
+    } else if (phase === 3) {
+        drawParserUI();
+        fill(100, 255, 100); textAlign(CENTER); textSize(30); noStroke();
+        text("PARSING SUCCESSFUL", width/2, height - 50);
+        document.getElementById('phase-display').innerText = "COMPLETE";
+    } else if (phase === 4) {
+        drawParserUI();
+        fill(255, 100, 100); textAlign(CENTER); textSize(30); noStroke();
+        text("PARSING FAILED", width/2, height - 50);
+        document.getElementById('phase-display').innerText = "ERROR";
+    }
+}
+
+// ==========================================
+// LEXER LOGIC (MODIFIED TO TRACK TRANSITIONS)
+// ==========================================
+function stepLexer() {
+    if (lIdx >= inputArr.length) {
+        if (lState === L_NUMBER && lBuffer.length > 0) {
+            tokens.push({type: "NUMBER", val: lBuffer});
+            lastLTransition = { from: L_NUMBER, to: L_START }; // Mark flush as transition to START
+        }
+        phase = 1;
+        return;
+    }
+    
+    let prevState = lState; // Capture state before transition
+    let c = inputArr[lIdx];
+    let nextState = -1;
+
+    switch (lState) {
+        case L_START:
+            if ("{}[],:".includes(c)) {
+                tokens.push({type: "STRUCTURAL", val: c});
+                lIdx++;
+                nextState = L_START;
+            } else if (c === '"') {
+                lState = L_STRING;
+                lBuffer = "";
+                lIdx++;
+                nextState = L_STRING;
+            } else if (/[0-9\-]/.test(c)) {
+                lState = L_NUMBER;
+                lBuffer = c;
+                lIdx++;
+                nextState = L_NUMBER;
+            } else if (/\s/.test(c)) {
+                lIdx++;
+                nextState = L_START;
+            } else {
+                tokens.push({type: "ERROR", val: c});
+                lIdx++;
+                nextState = L_START;
+            }
+            break;
+
+        case L_STRING:
+            if (c === '"') {
+                tokens.push({type: "STRING", val: lBuffer});
+                lBuffer = "";
+                lState = L_START;
+                lIdx++;
+                nextState = L_START;
+            } else {
+                lBuffer += c;
+                lIdx++;
+                nextState = L_STRING;
+            }
+            break;
+
+        case L_NUMBER:
+            if (/[0-9.]/.test(c)) {
+                lBuffer += c;
+                lIdx++;
+                nextState = L_NUMBER;
+            } else {
+                tokens.push({type: "NUMBER", val: lBuffer});
+                lBuffer = "";
+                lState = L_START;
+                nextState = L_START;
+                // lIdx not incremented: re-evaluate char in START
+            }
+            break;
+    }
+    
+    // Store the successful transition
+    if(nextState !== -1) {
+        lastLTransition = { from: prevState, to: nextState };
+    }
+}
+
+// ==========================================
+// PARSER LOGIC (MODIFIED TO TRACK TRANSITIONS)
+// ==========================================
+function stepParser() {
+    if (pIdx >= tokens.length) {
+        if (parseStack.length === 0) phase = 3;
+        else { pMsg = "Error: Unclosed opening bracket"; phase = 4; }
+        return;
+    }
+    
+    let prevState = pState;
+    let t = tokens[pIdx];
+    let type = t.type;
+    let val = t.val;
+    let didAction = false;
+    let nextState = -1;
+    let transitionLabel = "";
+
+switch (pState) {
+    case S_START:
+        if (type === "STRUCTURAL" && val === '{') {
+            parseStack.push('{'); pMsg = "Push '{'"; nextState = S_KEY; didAction = true; transitionLabel = "{ / ε / push({)"; 
+        } else if (type === "STRUCTURAL" && val === '[') {
+            parseStack.push('['); pMsg = "Push '['"; nextState = S_VALUE; didAction = true; transitionLabel = "[ / ε / push([)"; 
+        }
+        break;
+    case S_KEY:
+        if (type === "STRING") {
+            nextState = S_COLON; pMsg = "Read Key"; didAction = true; transitionLabel = "STRING / { / none"; 
+        } else if (type === "STRUCTURAL" && val === '}') {
+            if (parseStack[parseStack.length-1] === '{') {
+                parseStack.pop(); nextState = S_COMMA; pMsg = "Pop '{' (End Object)"; didAction = true; transitionLabel = "} / { / pop"; 
+            }
+        }
+        break;
+    case S_COLON:
+        if (type === "STRUCTURAL" && val === ':') {
+            nextState = S_VALUE; pMsg = "Expect Value"; didAction = true; transitionLabel = ": / { / none"; 
+        }
+        break;
+    case S_VALUE:
+        if (type === "STRING") {
+            nextState = S_COMMA; pMsg = "Read Literal (STRING)"; didAction = true; transitionLabel = "STRING / any / none"; 
+        } else if (type === "NUMBER") {
+            nextState = S_COMMA; pMsg = "Read Literal (NUMBER)"; didAction = true; transitionLabel = "NUMBER / any / none"; 
+        } else if (type === "STRUCTURAL" && val === '{') {
+            parseStack.push('{'); nextState = S_KEY; pMsg = "Push '{' (Nested)"; didAction = true; transitionLabel = "{ / any / push({)"; 
+        } else if (type === "STRUCTURAL" && val === '[') {
+            parseStack.push('['); nextState = S_VALUE; pMsg = "Push '[' (Nested)"; didAction = true; transitionLabel = "[ / any / push([)"; 
+        }
+        break;
+    case S_COMMA:
+        if (type === "STRUCTURAL" && val === ',') {
+            let top = parseStack[parseStack.length-1];
+            if (top === '{') { nextState = S_KEY; pMsg = "Next Element (Obj)"; transitionLabel = ", / { / none"; }
+            else if (top === '[') { nextState = S_VALUE; pMsg = "Next Element (Arr)"; transitionLabel = ", / [ / none"; }
+            didAction = true;
+        } else if (type === "STRUCTURAL" && val === '}') {
+            if (parseStack[parseStack.length-1] === '{') {
+                parseStack.pop(); nextState = S_COMMA; pMsg = "Pop '{'"; didAction = true; transitionLabel = "} / { / pop"; 
+            }
+        } else if (type === "STRUCTURAL" && val === ']') {
+            if (parseStack[parseStack.length-1] === '[') {
+                parseStack.pop(); nextState = S_COMMA; pMsg = "Pop '['"; didAction = true; transitionLabel = "] / [ / pop"; 
+            }
+        }
+        break;
+}
+
+
+
+    if (nextState !== -1) {
+        pState = nextState;
+        lastPTransition = { from: prevState, to: nextState, label: transitionLabel };
+    }
+
+    if (!didAction) {
+        pMsg = `Syntax Error: Unexpected ${type} ('${val}')`; phase = 4;
+    } else {
+        pIdx++;
+    }
+}
+
+// ==========================================
+// VISUALIZATION HELPERS (MODIFIED FOR CURVATURE & LABEL SIZE)
+// ==========================================
+
+function drawEdge(x1, y1, x2, y2, label, curveAmount = 0, offset = 0, sourceState, destState, isLexer = true) {
+    let dx = x2 - x1;
+    let dy = y2 - y1;
+    let d = sqrt(dx*dx + dy*dy);
+    if (d === 0) return;
+
+    let nx = -dy / d;
+    let ny = dx / d;
+
+    // Control point
+    let cx = (x1 + x2) / 2 + nx * curveAmount;
+    let cy = (y1 + y2) / 2 + ny * curveAmount;
+
+    // Node radius adjustment (r = 40)
+    let r = 40; 
+    let angle = atan2(y2 - cy, x2 - cx);
+    let tx = x2 - cos(angle) * r;
+    let ty = y2 - sin(angle) * r;
+    
+    // Determine if this is the active edge
+    let isActive = false;
+    if (isLexer) {
+        isActive = (lastLTransition.from === sourceState && lastLTransition.to === destState);
+    } else {
+        isActive = (lastPTransition.from === sourceState && lastPTransition.to === destState && lastPTransition.label === label);
+    }
+
+    // Draw Line/Curve
+    stroke(isActive ? color(255, 255, 0) : 100); 
+    strokeWeight(isActive ? 3 : 1); 
+    noFill();
+    if (abs(curveAmount) < 5) line(x1, y1, tx, ty);
+    else {
+        beginShape();
+        vertex(x1, y1);
+        quadraticVertex(cx, cy, tx, ty);
+        endShape();
+    }
+
+    // Arrowhead
+    push();
+    translate(tx, ty);
+    rotate(angle);
+    fill(isActive ? color(255, 255, 0) : 100); noStroke();
+    triangle(0, 0, -10, -5, -10, 5);
+    pop();
+
+    // Label position
+    let lx = (x1 + x2)/2; 
+    let ly = (y1 + y2)/2;
+    if(curveAmount !== 0) {
+        lx = (x1 + 2 * cx + x2) / 4; 
+        ly = (y1 + 2 * cy + y2) / 4;
+    }
+    
+    lx += nx * offset;
+    ly += ny * offset;
+
+    fill(30); stroke(isActive ? color(255, 255, 0) : 100); strokeWeight(isActive ? 2 : 1);
+    rectMode(CENTER);
+    textSize(LABEL_TEXT_SIZE); // Consistent text size
+    let tw = textWidth(label) + 10;
+    rect(lx, ly, tw, 16 + (LABEL_TEXT_SIZE - 10)); // Adjust rect height based on text size
+    
+    fill(isActive ? color(255, 255, 0) : 200); noStroke(); textAlign(CENTER, CENTER);
+    text(label, lx, ly);
+}
+
+function drawSelfLoop(x, y, label, angleDir, sourceState, isLexer = true) {
+    let r = 40;
+    let cx = x + cos(angleDir) * (r + 30);
+    let cy = y + sin(angleDir) * (r + 30);
+    
+    // Determine if this is the active edge (Self-loops mean sourceState == destState)
+    let isActive = false;
+    if (isLexer) {
+        isActive = (lastLTransition.from === sourceState && lastLTransition.to === sourceState);
+    } else {
+        isActive = (lastPTransition.from === sourceState && lastPTransition.to === sourceState && (lastPTransition.label === label || (label === "} or ] / Pop" && (lastPTransition.label === "} / Pop {" || lastPTransition.label === "Pop '['")) || (label === "[ / Push [" && lastPTransition.label === "[ / Push ["))); // More robust check for PDA self-loops
+    }
+
+    stroke(isActive ? color(255, 255, 0) : 100); 
+    strokeWeight(isActive ? 3 : 1); 
+    noFill();
+    ellipse(cx, cy, 60, 60); // Draw circle loop
+    
+    // Text Label position 
+    fill(30); stroke(isActive ? color(255, 255, 0) : 100); strokeWeight(isActive ? 2 : 1);
+    rectMode(CENTER);
+    textSize(LABEL_TEXT_SIZE); // Consistent text size
+    let tw = textWidth(label) + 10;
+    
+    // Adjust label position based on angleDir (top or side) - now further out
+    let lx = x + cos(angleDir) * (r + 70); // Further from the node
+    let ly = y + sin(angleDir) * (r + 70); // Further from the node
+    
+    rect(lx, ly, tw, 16 + (LABEL_TEXT_SIZE - 10)); // Adjust rect height based on text size
+    fill(isActive ? color(255, 255, 0) : 200); noStroke(); textAlign(CENTER, CENTER);
+    text(label, lx, ly);
+}
+
+function drawLexerUI() {
+    // 1. Input String at Top
+    textAlign(LEFT); textSize(16); noStroke();
+    let x = 20; let y = 50;
+    for (let i = 0; i < inputArr.length; i++) {
+        let currentCharWidth = textWidth(inputArr[i]);
+        if (i === lIdx) { 
+            fill(255, 255, 0); 
+            rect(x+5, y , currentCharWidth + 2, 20); 
+            fill(0); 
+        } 
+        else { fill(200); }
+        text(inputArr[i], x + 1, y);
+        x += currentCharWidth + 2;
+    }
+
+    // 2. DFA Graph (Increased Spacing)
+    // Coords
+    let startX = width * 0.2;
+    let startY = height * 0.5;
+    let strX = width * 0.8;
+    let strY = height * 0.25; 
+    let numX = width * 0.8;
+    let numY = height * 0.75; 
+
+// Start -> Start (structural, space, other)
+drawSelfLoop(startX, startY, 'struct / space / other → token', -PI/2, L_START);
+
+// Start -> String (quote)
+drawEdge(startX, startY, strX, strY, 'quote → none', -100, 0, L_START, L_STRING);
+
+// String -> Start (quote)
+drawEdge(strX, strY, startX, startY, 'quote → token', -100, 0, L_STRING, L_START);
+
+// String -> String (not quote)
+drawSelfLoop(strX, strY, 'not quote → buffer', -PI/4, L_STRING);
+
+// Start -> Number (digit or minus)
+drawEdge(startX, startY, numX, numY, 'digit or minus → buffer', 100, 0, L_START, L_NUMBER);
+
+// Number -> Start (other)
+drawEdge(numX, numY, startX, startY, 'other → token (no consume)', 100, 0, L_NUMBER, L_START);
+
+// Number -> Number (digit or dot)
+drawSelfLoop(numX, numY, 'digit or dot → buffer', PI/4, L_NUMBER);
+
+
+    // Nodes
+    drawNode(startX, startY, "L_START", lState === L_START);
+    drawNode(strX, strY, "L_STRING", lState === L_STRING);
+    drawNode(numX, numY, "L_NUMBER", lState === L_NUMBER);
+
+    // 3. Tokens Generated
+    fill(255); noStroke(); textAlign(LEFT); textSize(14);
+    text("TOKENS:", 20, height - 100);
+    let tx = 90;
+    let showT = tokens.slice(Math.max(0, tokens.length - 8));
+    for(let t of showT) {
+        fill(100, 200, 255);
+        text(`[${t.type}]`, tx, height - 100);
+        tx += textWidth(`[${t.type}]`) + 10;
+    }
+
+    // Buffer
+    fill(255, 100, 100); textSize(18);
+    textAlign(CENTER);
+    text(`Buffer: "${lBuffer}"`, width/2, height - 30);
+}
+
+function drawParserUI() {
+    // 1. Tokens Top
+    textAlign(LEFT); textSize(14); noStroke();
+    let tx = 20; let ty = 40;
+    for (let i = 0; i < tokens.length; i++) {
+        let str = (tokens[i].type==="STRING") ? `"${tokens[i].val}"` : tokens[i].val;
+        let w = textWidth(str) + 10;
+        if (i === pIdx) { fill(255, 255, 0); rect(tx, ty-10, w, 20); fill(0); }
+        else if (i < pIdx) fill(100); else fill(255);
+        text(str, tx+5, ty);
+        tx += w;
+    }
+
+    // 2. PDA Graph (Increased Spacing)
+    let cx = width/2; let cy = height/2;
+    // Define Positions 
+    let pos = {
+        [S_START]: {x: cx - 450, y: cy - 50},
+        [S_KEY]:   {x: cx - 200, y: cy - 150 - 50},  // cy - 200
+        [S_COLON]: {x: cx + 50,  y: cy - 150 - 50},  // cy - 200
+        [S_VALUE]: {x: cx + 300, y: cy - 50},
+        [S_COMMA]: {x: cx - 200, y: cy + 150 - 50}   // cy + 100
+    };
+
+
+// Edges 
+// Start -> Key ({)
+drawEdge(pos[S_START].x, pos[S_START].y, pos[S_KEY].x, pos[S_KEY].y, "{ / ε / push({)", -100, 0, S_START, S_KEY, false); 
+
+// Start -> Value ([)
+drawEdge(pos[S_START].x, pos[S_START].y, pos[S_VALUE].x, pos[S_VALUE].y, "[ / ε / push([)", 150, 0, S_START, S_VALUE, false); 
+
+// Key -> Colon
+drawEdge(pos[S_KEY].x, pos[S_KEY].y, pos[S_COLON].x, pos[S_COLON].y, "STRING / { / none", 0, 0, S_KEY, S_COLON, false);
+
+// Key -> Comma (Object End)
+drawEdge(pos[S_KEY].x, pos[S_KEY].y, pos[S_COMMA].x, pos[S_COMMA].y, "} / { / pop", 100, 25, S_KEY, S_COMMA, false);
+
+// Colon -> Value
+drawEdge(pos[S_COLON].x, pos[S_COLON].y, pos[S_VALUE].x, pos[S_VALUE].y, ": / { / none", 0, 0, S_COLON, S_VALUE, false);
+
+// Value -> Comma (Literal STRING)
+drawEdge(pos[S_VALUE].x, pos[S_VALUE].y, pos[S_COMMA].x, pos[S_COMMA].y, "STRING / any / none", -100, 0, S_VALUE, S_COMMA, false);
+
+// Value -> Comma (Literal NUMBER)
+drawEdge(pos[S_VALUE].x, pos[S_VALUE].y, pos[S_COMMA].x, pos[S_COMMA].y, "NUMBER / any / none", -180, 0, S_VALUE, S_COMMA, false);
+
+// Value -> Key (Nested Object)
+drawEdge(pos[S_VALUE].x, pos[S_VALUE].y, pos[S_KEY].x, pos[S_KEY].y, "{ / any / push({)", -50, 0, S_VALUE, S_KEY, false); 
+
+// Value -> Value (Nested Array) 
+drawSelfLoop(pos[S_VALUE].x, pos[S_VALUE].y, "[ / any / push([)", 0, S_VALUE, false);
+
+// Comma -> Key (Next Obj Item)
+drawEdge(pos[S_COMMA].x, pos[S_COMMA].y, pos[S_KEY].x, pos[S_KEY].y, ", / { / none", 100, 25, S_COMMA, S_KEY, false); 
+
+// Comma -> Value (Next Arr Item)
+drawEdge(pos[S_COMMA].x, pos[S_COMMA].y, pos[S_VALUE].x, pos[S_VALUE].y, ", / [ / none", 280, 10, S_COMMA, S_VALUE, false); 
+
+// Comma -> Comma (End Obj '}')
+drawSelfLoop(pos[S_COMMA].x, pos[S_COMMA].y, "} / { / pop", PI/2, S_COMMA, false);
+
+// Comma -> Comma (End Arr ']')
+drawSelfLoop(pos[S_COMMA].x, pos[S_COMMA].y, "] / [ / pop", PI/1.2, S_COMMA, false);
+
+    // Draw Nodes
+    drawNode(pos[S_START].x, pos[S_START].y, "START", pState === S_START);
+    drawNode(pos[S_KEY].x, pos[S_KEY].y, "KEY", pState === S_KEY);
+    drawNode(pos[S_COLON].x, pos[S_COLON].y, "COLON", pState === S_COLON);
+    drawNode(pos[S_VALUE].x, pos[S_VALUE].y, "VALUE", pState === S_VALUE);
+    drawNode(pos[S_COMMA].x, pos[S_COMMA].y, "COMMA", pState === S_COMMA);
+
+    // 3. Stack 
+    let sx = width - 120; 
+    let sy = height - 50; 
+    let stackWidth = 60;
+    let stackXCenter = sx + stackWidth/2;
+
+    fill(255); noStroke(); textAlign(CENTER); textSize(14);
+    text("STACK", stackXCenter, height - 250);
+    
+    stroke(255); noFill(); strokeWeight(2);
+    // Stack container
+    line(sx, height-220, sx, sy); 
+    line(sx + stackWidth, height-220, sx + stackWidth, sy); 
+    line(sx, sy, sx + stackWidth, sy);
+
+    noStroke();
+    rectMode(CENTER);
+    for(let i=0; i<parseStack.length; i++) {
+        fill(0, 150, 255);
+        rect(stackXCenter, sy - 20 - (i*30), stackWidth-10, 25);
+        fill(255);
+        text(parseStack[i], stackXCenter, sy - 20 - (i*30));
+    }
+    rectMode(CORNER); 
+
+    // Log
+    fill(255, 200, 100); textAlign(LEFT); textSize(16);
+    text(`Last Action: ${pMsg}`, 20, height - 20);
+}
+
+function drawNode(x, y, label, active) {
+    if (active) {
+        fill(0, 200, 0); stroke(255); strokeWeight(3);
+        drawingContext.shadowBlur = 20; drawingContext.shadowColor = 'lime';
+    } else {
+        fill(50); stroke(150); strokeWeight(1);
+        drawingContext.shadowBlur = 0;
+    }
+    ellipse(x, y, 80, 80);
+    drawingContext.shadowBlur = 0;
+    fill(255); noStroke(); textAlign(CENTER, CENTER); textSize(12);
+    text(label, x, y);
+}
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>

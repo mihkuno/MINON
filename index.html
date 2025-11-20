@@ -22,6 +22,7 @@
 // ==========================================
 
 const INPUT_STR = '{"id":{"hi":3},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]}';
+// const INPUT_STR = '{"id":{"hi":3.1.2},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]}';
 // const INPUT_STR = '{"val":1.2%, "test":"test"}';
 // const INPUT_STR = '{}';
 // const INPUT_STR = '{"val":1.2,}';
@@ -164,7 +165,7 @@ function stepLexer() {
             break;
 
         case L_NUMBER:
-            if (/[0-9.]/.test(c)) {
+            if (/[0-9]/.test(c)) {
                 lBuffer += c;
                 lIdx++;
                 nextState = L_NUMBER;
@@ -415,8 +416,8 @@ drawEdge(startX, startY, numX, numY, 'digit or minus → buffer', 100, 0, L_STAR
 // Number -> Start (other)
 drawEdge(numX, numY, startX, startY, 'other → token (no consume)', 100, 0, L_NUMBER, L_START);
 
-// Number -> Number (digit or dot)
-drawSelfLoop(numX, numY, 'digit or dot → buffer', PI/4, L_NUMBER);
+// Number -> Number (digit)
+drawSelfLoop(numX, numY, 'digit → buffer', PI/4, L_NUMBER);
 
 
     // Nodes

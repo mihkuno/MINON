@@ -37,7 +37,7 @@ vector<pair<string, string>> lexicalAnalyzer(const string &input) {
                     buffer = "";
                     i++;
                 }
-                else if ((c >= '0' && c <= '9') || c == '-') {
+                else if (isdigit(c) || c == '-') {
                     state = L_NUMBER;
                     buffer = c;
                     i++;
@@ -64,15 +64,19 @@ vector<pair<string, string>> lexicalAnalyzer(const string &input) {
                 break;
 
             case L_NUMBER:
-                if (isdigit(c) || c == '.') {
+                if (isdigit(c)) {
                     buffer += c;
                     i++;
-                } else {
+                }
+                else {
+                    // End integer
                     tokens.push_back({"NUMBER", buffer});
                     buffer = "";
                     state = L_START;
+                    // do NOT consume c — it will be processed next loop
                 }
                 break;
+
         }
     }
 
@@ -222,7 +226,8 @@ void syntaxAnalyzer(const vector<pair<string,string>> &tokens) {
 // --------------------------------------------------------
 int main() {
     // string input = R"({"id":"4","name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]})";
-    string input = R"({"x":5,})";
+    // string input = R"({"x":5,})";
+    string input = R"({"id":{"hi":3.1.2},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]})";
 
     // first tokenize the input
     auto tokens = lexicalAnalyzer(input);

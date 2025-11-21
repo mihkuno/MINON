@@ -73,7 +73,7 @@ vector<pair<string, string>> lexicalAnalyzer(const string &input) {
                     tokens.push_back({"NUMBER", buffer});
                     buffer = "";
                     state = L_START;
-                    // do NOT consume c — it will be processed next loop
+                    // do NOT consume c — it will be processed next loop instead of repeating struct/space/error
                 }
                 break;
 

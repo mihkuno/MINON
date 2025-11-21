@@ -128,26 +128,22 @@ function stepLexer() {
         case L_START:
             if ("{}[],:".includes(c)) {
                 tokens.push({type: "STRUCTURAL", val: c});
-                lIdx++;
                 nextState = L_START;
             } else if (c === '"') {
                 lState = L_STRING;
                 lBuffer = "";
-                lIdx++;
                 nextState = L_STRING;
             } else if (/[0-9\-]/.test(c)) {
                 lState = L_NUMBER;
                 lBuffer = c;
-                lIdx++;
                 nextState = L_NUMBER;
             } else if (/\s/.test(c)) {
-                lIdx++;
                 nextState = L_START;
             } else {
                 tokens.push({type: "ERROR", val: c});
-                lIdx++;
                 nextState = L_START;
             }
+            lIdx++;
             break;
 
         case L_STRING:
@@ -155,13 +151,12 @@ function stepLexer() {
                 tokens.push({type: "STRING", val: lBuffer});
                 lBuffer = "";
                 lState = L_START;
-                lIdx++;
                 nextState = L_START;
             } else {
                 lBuffer += c;
-                lIdx++;
                 nextState = L_STRING;
             }
+            lIdx++;
             break;
 
         case L_NUMBER:
@@ -174,7 +169,29 @@ function stepLexer() {
                 lBuffer = "";
                 lState = L_START;
                 nextState = L_START;
-                // lIdx not incremented: re-evaluate char in START
+                
+                // (second output)
+
+                if ("{}[],:".includes(c)) {
+                    tokens.push({type: "STRUCTURAL", val: c});
+                    nextState = L_START;
+                } else if (c === '"') {
+                    lState = L_STRING;
+                    lBuffer = "";
+                    nextState = L_STRING;
+                } else if (/[0-9\-]/.test(c)) {
+                    lState = L_NUMBER;
+                    lBuffer = c;
+                    nextState = L_NUMBER;
+                } else if (/\s/.test(c)) {
+                    nextState = L_START;
+                } else {
+                    tokens.push({type: "ERROR", val: c});
+                    nextState = L_START;
+                }
+
+                lIdx++;
+                
             }
             break;
     }
@@ -399,7 +416,7 @@ function drawLexerUI() {
     let numY = height * 0.75; 
 
 // Start -> Start (structural, space, other)
-drawSelfLoop(startX, startY, 'struct / space / other → token', -PI/2, L_START);
+drawSelfLoop(startX, startY, 'struct / space / error → token', -PI/2, L_START);
 
 // Start -> String (quote)
 drawEdge(startX, startY, strX, strY, 'quote → none', -100, 0, L_START, L_STRING);
@@ -414,7 +431,7 @@ drawSelfLoop(strX, strY, 'not quote → buffer', -PI/4, L_STRING);
 drawEdge(startX, startY, numX, numY, 'digit or minus → buffer', 100, 0, L_START, L_NUMBER);
 
 // Number -> Start (other)
-drawEdge(numX, numY, startX, startY, 'other → token (no consume)', 100, 0, L_NUMBER, L_START);
+drawEdge(numX, numY, startX, startY, 'struct / space/ error → [token, token]', 100, 0, L_NUMBER, L_START);
 
 // Number -> Number (digit)
 drawSelfLoop(numX, numY, 'digit → buffer', PI/4, L_NUMBER);

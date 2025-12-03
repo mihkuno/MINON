@@ -416,7 +416,7 @@ function drawLexerUI() {
     let numY = height * 0.75; 
 
 // Start -> Start (structural, space, other)
-drawSelfLoop(startX, startY, 'struct / space / error → token', -PI/2, L_START);
+drawSelfLoop(startX, startY, 'struct / error → token', -PI/2, L_START);
 
 // Start -> String (quote)
 drawEdge(startX, startY, strX, strY, 'quote → none', -100, 0, L_START, L_STRING);
@@ -431,7 +431,7 @@ drawSelfLoop(strX, strY, 'not quote → buffer', -PI/4, L_STRING);
 drawEdge(startX, startY, numX, numY, 'digit or minus → buffer', 100, 0, L_START, L_NUMBER);
 
 // Number -> Start (other)
-drawEdge(numX, numY, startX, startY, 'struct / space/ error → [token, token]', 100, 0, L_NUMBER, L_START);
+drawEdge(numX, numY, startX, startY, 'struct / error → [token, token]', 100, 0, L_NUMBER, L_START);
 
 // Number -> Number (digit)
 drawSelfLoop(numX, numY, 'digit → buffer', PI/4, L_NUMBER);

@@ -167,9 +167,31 @@ Table 1: Context-Free Grammar of the Minimized JSON Compiler
 
 
 
-References
+## 4.3 Parsing Code Snippet
 
-[1] Erickson, J. (2024, April 4). What is JSON? https://www.oracle.com/asean/database/what-is-json/ 
+Below are the code snippets for the syntax analyzer portion of the minimized object notation compiler. The syntax analyzer snippets show the code for simulating the entire process of parsing the created tokens from the lexical analyzer, the simulation is then visually presented with the use of a locally hosted web browser.
+
+<img width="1113" height="731" alt="Screenshot 2025-12-19 154611" src="https://github.com/user-attachments/assets/964a767a-0c17-44fc-97ef-7a1109538d75" />
+<p align="center">Figure 7: Parsing Code Snippet 1<br /><br />
+
+<img width="764" height="460" alt="Screenshot 2025-12-19 154719" src="https://github.com/user-attachments/assets/982a0110-7b3c-41c3-bc34-af25a3a0b8c7" />
+<p align="center">Figure 8: Parsing Code Snippet 2<br /><br />
+
+<img width="778" height="712" alt="Screenshot 2025-12-19 154752" src="https://github.com/user-attachments/assets/563cb104-1536-48dc-93f0-139607ad731d" />
+<p align="center">Figure 9: Parsing Code Snippet 3<br /><br />
+
+<img width="939" height="693" alt="Screenshot 2025-12-19 154905" src="https://github.com/user-attachments/assets/5340a88c-1411-4fe2-bfb8-e36bdb90c3af" />
+<p align="center">Figure 10: Parsing Code Snippet 4<br /><br />
+
+<img width="896" height="553" alt="Screenshot 2025-12-19 154928" src="https://github.com/user-attachments/assets/eae6693c-576c-42a7-ab5e-f1d4bdcb7461" />
+<p align="center">Figure 11: Parsing Code Snippet 5<br /><br />
+
+
+# References
+
+[1] Erickson, J. (2024, April 4). What is JSON? https://www.oracle.com/asean/database/what-is-json/<br />
+
+
 [2] JSON. (n.d.). https://www.json.org/json-en.html 
 
 

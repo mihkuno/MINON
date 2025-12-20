@@ -414,14 +414,29 @@ function drawLexerUI() {
     let strX = width * 0.6, strY = height * 0.25 - 25; 
     let numX = width * 0.6, numY = height * 0.75 - 25; 
 
-    drawSelfLoop(startX, startY, 'struct/space → token', -PI/2, L_START);
-    drawEdge(startX, startY, strX, strY, 'quote → begin', -100, 0, L_START, L_STRING);
-    drawEdge(strX, strY, startX, startY, 'quote → token', -100, 0, L_STRING, L_START);
-    drawSelfLoop(strX, strY, 'char → buffer', -PI/4, L_STRING);
-    drawEdge(startX, startY, numX, numY, 'digit → begin', 100, 0, L_START, L_NUMBER);
-    drawEdge(numX, numY, startX, startY, 'other → token', 100, 0, L_NUMBER, L_START);
-    drawSelfLoop(numX, numY, 'digit → buffer', PI/4, L_NUMBER);
+// Start -> Start (structural, space, other)
+drawSelfLoop(startX, startY, 'struct / error → token', -PI/2, L_START);
 
+// Start -> String (quote)
+drawEdge(startX, startY, strX, strY, 'quote → none', -100, 0, L_START, L_STRING);
+
+// String -> Start (quote)
+drawEdge(strX, strY, startX, startY, 'quote → token', -100, 0, L_STRING, L_START);
+
+// String -> String (not quote)
+drawSelfLoop(strX, strY, 'not quote → buffer', -PI/4, L_STRING);
+
+// Start -> Number (digit or minus)
+drawEdge(startX, startY, numX, numY, 'digit or minus → buffer', 100, 0, L_START, L_NUMBER);
+
+// Number -> Start (other)
+drawEdge(numX, numY, startX, startY, 'struct / error → [token, token]', 100, 0, L_NUMBER, L_START);
+
+// Number -> Number (digit)
+drawSelfLoop(numX, numY, 'digit → buffer', PI/4, L_NUMBER);
+
+
+    // Nodes
     drawNode(startX, startY, "L_START", lState === L_START);
     drawNode(strX, strY, "L_STRING", lState === L_STRING);
     drawNode(numX, numY, "L_NUMBER", lState === L_NUMBER);

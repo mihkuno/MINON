@@ -227,7 +227,8 @@ void syntaxAnalyzer(const vector<pair<string,string>> &tokens) {
 int main() {
     // string input = R"({"id":"4","name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]})";
     // string input = R"({"x":5,})";
-    string input = R"({"id":{"hi":3.1.2},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]})";
+    // string input = R"({"id":{"hi":3.1.2},"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":1.2}]})";
+    string input = R"({"id":{"hi":3}%,"name":"BGMU!","fields":[{"floor":"1","id":0},{"floor":"2","id":12}]})";
 
     // first tokenize the input
     auto tokens = lexicalAnalyzer(input);
